@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  fastapi_serving:
+    build: . 
+      # Utilise le Dockerfile dans le répertoire actuel
+    container_name: fastapi_model_serving
+    volumes:
+      - ../artifacts:/app/artifacts  # Monte le répertoire artifacts
+      - ../data:/app/data   
+      
+      - ../scripts:/app/scripts         # Monte le répertoire data
+    ports:
+      - "8000:8000"  # Expose le port 8000 pour l'API FastAPI
+    working_dir: /app  # Le répertoire de travail de l'application
+    command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000"]
