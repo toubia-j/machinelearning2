@@ -1,21 +1,29 @@
-from fastapi import FastAPI
-from scripts.train_model import train_model  # Assurez-vous que 'train_model' est bien importé
-from sklearn.model_selection import train_test_split
-from scripts.train_model import load_data, preprocess_data, normalize_data
-import os
 
-app = FastAPI()
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List
+import requests
 
+# On importe la logique ML depuis model.py
+from .model import recommender_function
 
-@app.get("/")
-def read_root():
-    return {"message": "Bienvenue sur l'API de prévision de modèle!"}
-# Route pour entraîner le modèle
+# Créer l’application FastAPI
+api_app = FastAPI()
 
+# Modèle Pydantic pour la requête
+class BookDescription(BaseModel):
+    description: str
 
-@app.post("/train_model/")
-async def train_model():
-    # Logique pour entraîner ton modèle ici, en appelant la fonction train_model définie dans ton script
-    # Exemple : 
-    # model = train_model(X_train, y_train)
-    return {"message": "Modèle entraîné avec succès!"}
+@api_app.get("/")
+def root():
+    return {"message": "Bienvenue sur l’API de recommandation"}
+
+@api_app.post("/recommend/")
+async def recommend_books(book: BookDescription) -> dict:
+    try:
+        # Appel à la fonction de recommandation (définie dans model.py)
+        results = recommender_function(book.description)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {"recommendations": results}
