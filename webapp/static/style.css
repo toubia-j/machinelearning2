@@ -1,0 +1,92 @@
+/* style.css */
+
+/* Réinitialisation rapide */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: Arial, sans-serif;
+    background-color: #f9f9f9;
+  }
+  
+  /* Conteneur principal */
+  .container {
+    max-width: 700px;
+    margin: 40px auto; /* Espace au-dessus et en dessous */
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  
+  /* Titre principal */
+  h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Form-group (label + textarea) */
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  /* Labels pour champs */
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  
+  /* Zone de texte */
+  textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-family: inherit;
+    resize: vertical;
+  }
+  
+  /* Bouton principal */
+  button {
+    background-color: #28a745; /* Vert bootstrap-like */
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s ease;
+  }
+  button:hover {
+    background-color: #218838;
+  }
+  
+  /* Liste des recommandations */
+  ul {
+    list-style: none;
+    padding-left: 0; /* Enlève le retrait gauche */
+    margin-top: 1.2rem;
+  }
+  ul li {
+    background-color: #f1f1f1;
+    margin-bottom: 8px;
+    padding: 10px;
+    border-radius: 4px;
+  }
+  
+  /* Lien de retour */
+  a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: 600;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  
