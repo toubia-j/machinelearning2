@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prédiction de Genres</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        .container { background: #f8f9fa; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        textarea { width: 100%; padding: 10px; margin: 10px 0; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; background: white; border-radius: 4px; }
+        .prob-bar { height: 20px; background: #28a745; margin: 5px 0; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Prédiction de Genres Littéraires</h1>
+        
+        <form onsubmit="return handleSubmit(event)">
+            <textarea id="description" rows="5" placeholder="Entrez votre texte ici..."></textarea>
+            <button type="submit">Analyser</button>
+        </form>
+
+        <div class="result">
+            <h3>Résultats :</h3>
+            <div id="prediction-result"></div>
+            <div id="probability-chart"></div>
+        </div>
+    </div>
+
+    <script>
+        async function handleSubmit(event) {
+            event.preventDefault();
+            const description = document.getElementById('description').value;
+            
+            try {
+                const response = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ description })
+                });
+        
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+        
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new TypeError("La réponse n'est pas du JSON");
+                }
+        
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Affichage des résultats
+                document.getElementById('prediction-result').innerHTML = `
+                    <p><strong>Genres détectés :</strong> ${data.prediction.join(', ') || 'Aucun'}</p>
+                `;
+
+                let probHTML = '<p><strong>Probabilités :</strong></p>';
+                if (data.probabilities) {
+                    Object.entries(data.probabilities).forEach(([genre, prob]) => {
+                        probHTML += `
+                            <div style="margin: 10px 0;">
+                                <div>${genre}</div>
+                                <div class="prob-bar" style="width: ${prob * 100}%"></div>
+                                <div>${(prob * 100).toFixed(1)}%</div>
+                            </div>
+                        `;
+                    });
+                }
+                document.getElementById('probability-chart').innerHTML = probHTML;
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                alert(`Erreur: ${error.message}`);
+            }
+        }
+        if (data.probabilities && Object.keys(data.probabilities).length > 0) {
+            let probHTML = '<p><strong>Probabilités significatives (>5%) :</strong></p>';
+            Object.entries(data.probabilities).forEach(([genre, prob]) => {
+                probHTML += `
+                    <div style="margin: 10px 0;">
+                        <div>${genre}</div>
+                        <div class="prob-bar" style="width: ${prob * 100}%"></div>
+                        <div>${(prob * 100).toFixed(1)}%</div>
+                    </div>
+                `;
+            });
+            document.getElementById('probability-chart').innerHTML = probHTML;
+        } else {
+            document.getElementById('probability-chart').innerHTML = 
+                '<p>Aucune probabilité significative (>5%)</p>';
+        }
+    </script>
+</body>
+</html>
