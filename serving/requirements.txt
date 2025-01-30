@@ -7,3 +7,4 @@ Pillow
 python-multipart
 matplotlib
 gensim
+sentence_transformers

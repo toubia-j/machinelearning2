@@ -1,199 +1,161 @@
-import os
+from flask import Flask, request, jsonify, render_template
 import joblib
-import numpy as np
 import pandas as pd
-import numpy as np
+from flask_cors import CORS
 import os
+from flask import Flask, request, jsonify, render_template
 import joblib
-from datetime import datetime
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import (
-    accuracy_score, f1_score, hamming_loss, 
-    mean_absolute_error, precision_score, recall_score
-)
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.multiclass import OneVsRestClassifier
-from sklearn.preprocessing import MultiLabelBinarizer
-from typing import Dict, List, Tuple, Any
-from tqdm import tqdm
-from tabulate import tabulate
+import pandas as pd
+from classes import Preprocessor 
+app = Flask(__name__)
+CORS(app)  # Autorise les requêtes cross-origin
 
-class DataLoader:
-    @staticmethod
-    def load_data(file_path: str) -> Tuple[pd.Series, np.ndarray, MultiLabelBinarizer]:
-        """Load and clean data with multi-label support"""
-        df = pd.read_csv(file_path)
-        
-        # Handle missing values
-        df = df.dropna(subset=['description', 'categories'])
-        df['description'] = df['description'].fillna('').str.strip()
-        
-        # Convert categories to binary matrix
-        df['categories'] = df['categories'].astype(str)
-        df['categories'] = df['categories'].str.split(', ')  # Assuming comma-separated labels
-        
-        # Create MultiLabelBinarizer
-        mlb = MultiLabelBinarizer()
-        y = mlb.fit_transform(df['categories'])
-        
-        return df['description'], y, mlb
+# -------------------------------------------------------
+# 1) Préparation : charger tous les modèles au démarrage
+# -------------------------------------------------------
+# On peut stocker chaque triplet (model, preprocessor, mlb) dans un dict
+# Clé = nom "logique" du modèle, Valeur = (model, preprocessor, mlb)
+MODELS = {}
 
-class Preprocessor(TransformerMixin, BaseEstimator):
-    """Enhanced preprocessor with basic text cleaning"""
-    def __init__(self):
-        self.vectorizer = TfidfVectorizer(
-            stop_words='english',
-            max_features=5000,
-            min_df=2,
-            max_df=0.95
+def load_resources_all():
+    """
+    Charge plusieurs modèles et leurs ressources associées (preprocessor, mlb).
+    Adapte les noms/fichiers à tes propres besoins.
+    """
+    # Dictionnaire de chemins => { "nom_modele": ("model_file", "preproc_file", "mlb_file") }
+    models_info = {
+        "baseline": (
+            "saved_models/model.pkl",
+            "saved_models/preprocessor.pkl",
+            "saved_models/mlb.pkl",
+        ),
+        "svm_20250126_222927": (
+            "saved_models/svm_20250126_222927.pkl",
+            "saved_models/preprocessor.pkl",
+            "saved_models/mlb.pkl",
+        ),
+        "logistic_reg_20250126_222927": (
+            "saved_models/logistic_reg_20250126_222927.pkl",
+            "saved_models/preprocessor.pkl",
+            "saved_models/mlb.pkl",
         )
-        
-    def fit(self, X, y=None):
-        # Convert to pandas Series for consistent handling
-        X = pd.Series(X).astype(str)
-        self.vectorizer.fit(X)
-        return self
-    
-    def transform(self, X):
-        # Ensure input is always treated as a pandas Series
-        X = pd.Series(X).astype(str)
-        return self.vectorizer.transform(X)
-
-class ModelTrainer:
-    def __init__(self, models: Dict[str, Any], metrics: Dict[str, Any]):
-        self.models = models
-        self.metrics = metrics
-        self.results = []
-        
-    def train_and_evaluate(self, X_train, X_test, y_train, y_test):
-        """Train and evaluate all models with extended metrics"""
-        with tqdm(total=len(self.models), desc="Training models") as model_pbar:
-            for model_name, model in self.models.items():
-                model_pbar.set_description(f"Training {model_name}")
-                
-                # Training
-                model.fit(X_train, y_train)
-                
-                # Predictions
-                predictions = model.predict(X_test)
-                
-                # Calculate probabilities for MAE (if available)
-                prob_predictions = (model.predict_proba(X_test) 
-                                    if hasattr(model, 'predict_proba') 
-                                    else None)
-                
-                # Calculate all metrics
-                metrics_results = {}
-                for metric_name, metric_func in self.metrics.items():
-                    try:
-                        if metric_name == 'mae' and prob_predictions is not None:
-                            metrics_results[metric_name] = mean_absolute_error(
-                                y_test, prob_predictions[:, 1] if prob_predictions.shape[1] == 2 else prob_predictions
-                            )
-                        else:
-                            metrics_results[metric_name] = metric_func(y_true=y_test, y_pred=predictions)
-                    except Exception as e:
-                        print(f"Error calculating {metric_name}: {str(e)}")
-                        metrics_results[metric_name] = np.nan
-                
-                self.results.append({
-                    'model': model_name,
-                    **metrics_results,
-                    'instance': model
-                })
-                model_pbar.update(1)
-
-class ExperimentRunner:
-    def __init__(self, config: Dict):
-        self.config = config
-        
-    def run(self, X, y):
-        """Run complete experiment pipeline"""
-        # Split data - keep original text data
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=self.config['test_size'], random_state=42
-        )
-        
-        # Preprocess data - create transformed versions
-        preprocessor = self.config['preprocessor']()
-        X_train_transformed = preprocessor.fit_transform(X_train)
-        X_test_transformed = preprocessor.transform(X_test)
-        
-        # Initialize and run trainer with transformed data
-        trainer = ModelTrainer(self.config['models'], self.config['metrics'])
-        trainer.train_and_evaluate(X_train_transformed, X_test_transformed, y_train, y_test)
-        
-        # Save models and preprocessor
-        if 'save_dir' in self.config:
-            save_models(
-                trainer.results,
-                preprocessor,
-                self.config['mlb'],
-                self.config['save_dir']
-            )
-        
-        # Return original text data for evaluation
-        return trainer.results, X_test, y_test
-
-def predict_genre_from_path(model_path: str, synopsis: str, threshold: float = 0.5) -> dict:
-    import os
-    import joblib
-    
-    # Extract directory and filename components
-    directory = os.path.dirname(model_path)
-    filename = os.path.basename(model_path)
-    
-    # Extract timestamp from model filename
-    try:
-        filename_parts = filename.split('_')
-        timestamp = '_'.join(filename_parts[-2:]).replace('.pkl', '')
-    except:
-        raise ValueError("Invalid model filename format. Expected format: 'modelname_YYYYMMDD_HHMMSS.pkl'")
-    
-    # Construct paths for preprocessor and label binarizer
-    preprocessor_path = "saved_models/preprocessor_20250126_222927.pkl"
-    mlb_path = "saved_models/mlb_20250126_222927.pkl"
-    
-    # Verify all required files exist
-    for path in [model_path, preprocessor_path, mlb_path]:
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"Required file missing: {path}")
-    
-    # Load resources
-    model = joblib.load(model_path)
-    preprocessor = joblib.load(preprocessor_path)
-    mlb = joblib.load(mlb_path)
-    
-    # Preprocess and predict
-    processed_text = preprocessor.transform([synopsis])
-    
-    if hasattr(model, 'predict_proba'):
-        probabilities = model.predict_proba(processed_text)
-        prediction = (probabilities >= threshold).astype(int)
-    else:
-        prediction = model.predict(processed_text)
-        probabilities = None
-    
-    # Convert to human-readable labels
-    predicted_labels = mlb.inverse_transform(prediction)
-    
-    return {
-        'genres': list(predicted_labels[0]),
-        'probabilities': dict(zip(mlb.classes_, probabilities[0])) if probabilities is not None else None
     }
 
+    global MODELS
+    for model_key, (model_path, preproc_path, mlb_path) in models_info.items():
+        try:
+            # Vérifie l'existence des fichiers
+            if not all(os.path.exists(p) for p in [model_path, preproc_path, mlb_path]):
+                app.logger.warning(f"Fichier(s) manquant(s) pour {model_key}, vérifie les chemins.")
+                continue
+            
+            # Charge le modèle scikit-learn
+            model = joblib.load(model_path)
+            preprocessor = joblib.load(preproc_path)
+            mlb = joblib.load(mlb_path)
 
-def test_pred(description):
-    print("t1")
-    prediction = predict_genre_from_path(
-        model_path= "saved_models/svm_20250126_222927.pkl",
-        synopsis=description
-    )
-    print("affichage Prediction avec 1.6.1",prediction['genres'])
-    return prediction
+            MODELS[model_key] = (model, preprocessor, mlb)
+            app.logger.info(f"✓ Modèle '{model_key}' chargé avec succès.")
+        except Exception as e:
+            app.logger.error(f"Erreur lors du chargement de {model_key}: {e}")
 
-test_pred("A thrilling mystery about a detective solving crimes in Victorian London")
+# -------------------------------------------------------
+# 2) Fonction utilitaire pour retourner les probabilités
+# -------------------------------------------------------
+def get_probas(model, processed_data, mlb, threshold=0.05):
+    """
+    Calcule les probabilités pour chaque label et
+    renvoie un dict { label: prob } filtré par threshold.
+    """
+    try:
+        if hasattr(model, 'predict_proba'):
+            probabilities = model.predict_proba(processed_data)
+            # Combinaison label-proba (probabilities[0] => vecteur de probabilités pour la 1ère ligne)
+            prob_dict = {
+                label: float(prob)
+                for label, prob in zip(mlb.classes_, probabilities[0])
+            }
+            # Filtrage et tri décroissant
+            filtered_sorted = {
+                k: v for k, v in sorted(prob_dict.items(), key=lambda x: x[1], reverse=True)
+                if v >= threshold
+            }
+            return filtered_sorted
+        return {}
+    except Exception as e:
+        app.logger.error(f"Erreur de probabilités: {str(e)}")
+        return {}
+
+# -------------------------------------------------------
+# 3) Charger toutes les ressources au démarrage
+# -------------------------------------------------------
+load_resources_all()
+
+@app.route('/')
+def home():
+    """Affiche la page HTML."""
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    """
+    Route qui applique la prédiction sur TOUS les modèles
+    et renvoie un JSON du type :
+    {
+      "results": {
+        "baseline": {
+          "prediction": [...],
+          "probabilities": {...}
+        },
+        "svm_20250126_222927": {
+          "prediction": [...],
+          "probabilities": {...}
+        },
+        ...
+      }
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data or 'description' not in data:
+            return jsonify({'error': 'Missing "description" field'}), 400
+            
+        description = data['description']
+        if not MODELS:
+            return jsonify({'error': 'Aucun modèle n\'est chargé.'}), 500
+        
+        # Pour chaque modèle, on génère les prédictions
+        all_results = {}
+        for model_key, (model, preprocessor, mlb) in MODELS.items():
+            try:
+                # Conversion en Series, transformation TF-IDF
+                processed = preprocessor.transform(pd.Series([description]))
+                
+                # Prédiction binaire
+                prediction_array = model.predict(processed)  # ex: [[1, 0, 1, ...]]
+                labels = mlb.inverse_transform(prediction_array)
+                
+                # Probabilités
+                probabilities = get_probas(model, processed, mlb, threshold=0.02)
+                
+                all_results[model_key] = {
+                    'prediction': list(labels[0]),
+                    'probabilities': probabilities
+                }
+
+            except Exception as e:
+                app.logger.error(f"Erreur de prédiction avec le modèle {model_key}: {e}")
+                all_results[model_key] = {
+                    'prediction': [],
+                    'probabilities': {},
+                    'error': str(e)
+                }
+        
+        return jsonify({'results': all_results})
+    
+    except Exception as e:
+        app.logger.error(f"Prediction error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)

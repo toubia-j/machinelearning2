@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Double Prédiction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f4f5f7;
+        }
+        .container {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            resize: vertical;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .model-block {
+            margin-bottom: 20px;
+            background: #ffffff;
+            border: 1px solid #e2e2e2;
+            border-radius: 4px;
+            padding: 10px;
+        }
+        .model-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .prob-bar {
+            height: 20px;
+            background: #28a745;
+            margin: 5px 0;
+            transition: width 0.3s;
+            border-radius: 3px;
+        }
+        .prob-label {
+            font-size: 0.9em;
+            color: #555;
+        }
+        .section-title {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Comparaison des deux APIs</h1>
+
+    <div class="container">
+        <h2>Entrée Description</h2>
+        <form onsubmit="return handleSubmit(event)">
+            <textarea id="description" rows="5" placeholder="Entrez votre résumé ou description..."></textarea>
+            <button type="submit">Analyser</button>
+        </form>
+    </div>
+
+    <div class="container">
+        <div class="section-title">Résultats de app.py (port 5000)</div>
+        <div id="results-app" class="result" style="display: none;"></div>
+    </div>
+
+    <div class="container">
+        <div class="section-title">Résultats de test.py (port 5001)</div>
+        <div id="results-test" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        async function handleSubmit(event) {
+            event.preventDefault();
+            const description = document.getElementById('description').value.trim();
+            if (!description) {
+                alert("Veuillez saisir une description.");
+                return false;
+            }
+
+            // On va faire 2 appels fetch en parallèle (ou en série),
+            // un vers app.py (localhost:5000), l'autre vers test.py (localhost:5001).
+            try {
+                // Appel vers app.py
+                const responseApp = await fetch('http://localhost:5000/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description })
+                });
+                const dataApp = await responseApp.json();
+
+                // On affiche les résultats dans la div "results-app"
+                displayResults("results-app", dataApp, "App.py");
+
+                // Appel vers test.py
+                const responseTest = await fetch('http://localhost:5001/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ description })
+                });
+                const dataTest = await responseTest.json();
+
+                // On affiche les résultats dans la div "results-test"
+                displayResults("results-test", dataTest, "Test.py");
+
+            } catch (error) {
+                console.error('Erreur de requête:', error);
+                alert("Erreur : " + error.message);
+            }
+
+            return false;
+        }
+
+        function displayResults(containerId, data, label) {
+            const container = document.getElementById(containerId);
+            
+            // Si la clé 'error' existe
+            if (data.error) {
+                container.style.display = 'block';
+                container.innerHTML = `<p style="color:red;">Erreur : ${data.error}</p>`;
+                return;
+            }
+
+            if (!data.results) {
+                container.style.display = 'block';
+                container.innerHTML = "<p>Aucun résultat reçu.</p>";
+                return;
+            }
+
+            // On réinitialise le container
+            container.innerHTML = "";
+            container.style.display = 'block';
+
+            // data.results : { model_key: { prediction: [...], probabilities: {...} } }
+            for(const [modelName, modelData] of Object.entries(data.results)) {
+                // Crée un bloc pour chaque modèle
+                const block = document.createElement('div');
+                block.className = 'model-block';
+
+                // Titre
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'model-title';
+                titleDiv.textContent = `Modèle : ${modelName}`;
+                block.appendChild(titleDiv);
+
+                // Genres détectés
+                const predP = document.createElement('p');
+                predP.innerHTML = `<strong>Genres détectés :</strong> ${
+                    modelData.prediction && modelData.prediction.length > 0
+                        ? modelData.prediction.join(", ")
+                        : 'Aucun'
+                }`;
+                block.appendChild(predP);
+
+                // Si on a un champ "probabilities"
+                if (modelData.probabilities) {
+                    // On filtre / tri ? 
+                    // Suppose qu'on veut tout ou un threshold de 5%
+                    const filteredProbs = Object.entries(modelData.probabilities)
+                        .filter(([genre, prob]) => prob >= 0.05);
+
+                    if (filteredProbs.length > 0) {
+                        const probTitle = document.createElement('p');
+                        probTitle.innerHTML = `<strong>Probabilités (≥ 5%) :</strong>`;
+                        block.appendChild(probTitle);
+
+                        // Affichage
+                        for(const [genre, prob] of filteredProbs) {
+                            const barContainer = document.createElement('div');
+                            barContainer.style.marginBottom = '10px';
+
+                            const labelDiv = document.createElement('div');
+                            labelDiv.className = 'prob-label';
+                            labelDiv.innerText = `${genre} (${(prob * 100).toFixed(1)}%)`;
+                            barContainer.appendChild(labelDiv);
+
+                            const bar = document.createElement('div');
+                            bar.className = 'prob-bar';
+                            bar.style.width = (prob * 100) + '%';
+                            barContainer.appendChild(bar);
+
+                            block.appendChild(barContainer);
+                        }
+                    } else {
+                        const noProb = document.createElement('p');
+                        noProb.textContent = "Aucune probabilité >= 5%.";
+                        block.appendChild(noProb);
+                    }
+                }
+
+                // S'il y a une erreur interne
+                if (modelData.error) {
+                    const errP = document.createElement('p');
+                    errP.style.color = 'red';
+                    errP.textContent = `Erreur interne : ${modelData.error}`;
+                    block.appendChild(errP);
+                }
+
+                container.appendChild(block);
+            }
+        }
+    </script>
+</body>
+</html>
