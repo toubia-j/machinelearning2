@@ -1,0 +1,18 @@
+# machinelearning2/docker-compose.yml
+
+version: '3.8'
+
+services:
+  app_service:
+    build: .               
+    container_name: app_container
+    command: python serving/app.py  
+    ports:
+      - "5000:5000"
+
+  test_service:
+    build: .
+    container_name: test_container
+    command: python serving/test.py  
+    ports:
+      - "5001:5001"
