@@ -1,18 +1,11 @@
 from flask import Flask, request, jsonify, render_template
-import joblib
-import pandas as pd
 from flask_cors import CORS
-import os
-from flask import Flask, request, jsonify, render_template
 import joblib
-import pandas as pd
 from classes import Preprocessor 
-from flask import Flask, request, jsonify, render_template
-import joblib
 import pandas as pd
 import numpy as np
 import os
-from flask_cors import CORS
+
 app = Flask(__name__)
 CORS(app)
 

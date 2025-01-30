@@ -3,10 +3,8 @@ import joblib
 import pandas as pd
 from flask_cors import CORS
 import os
-from flask import Flask, request, jsonify, render_template
-import joblib
-import pandas as pd
 from classes import Preprocessor 
+
 app = Flask(__name__)
 CORS(app)  # Autorise les requêtes cross-origin
 
