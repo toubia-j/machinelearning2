@@ -4,6 +4,7 @@ Si vous désirez exécuter le projet localement, voici la procédure :
 Téléchargez le contenu du FileSender (les modèles) : https://filesender.renater.fr/?s=download&token=528c7b46-0ee4-40b4-a0fc-89ff81e7fecc
 
 Dans un premier terminal, placez-vous à la racine du projet et lancez :
+
 -python .\serving\test.py
 
 -Dans un deuxième terminal, toujours à la racine du projet, lancez :
